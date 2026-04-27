@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function getEmployee(uid) {
+      return get(/databases/$(database)/documents/employees/$(uid)).data;
+    }
+
+    function isEmployee() {
+      return isSignedIn() && (
+        request.auth.token.email == 'revathiinfrad@gmail.com' ||
+        exists(/databases/$(database)/documents/employees/$(request.auth.uid))
+      );
+    }
+
+    function isAdmin() {
+      // Prioritize email check to skip document reads
+      return isSignedIn() && (
+        request.auth.token.email == 'revathiinfrad@gmail.com' ||
+        (exists(/databases/$(database)/documents/employees/$(request.auth.uid)) && getEmployee(request.auth.uid).role == 'admin')
+      );
+    }
+
+    function isPlotManager() {
+       return isEmployee();
+    }
+
+    // --- Validation Helpers ---
+    function isValidEmployee(data) {
+      return data.keys().hasAll(['employeeId', 'username', 'role', 'email']) 
+        && data.employeeId is string && data.employeeId.size() <= 30
+        && data.username is string && data.username.size() <= 100
+        && data.role in ['admin', 'staff']
+        && data.email is string && data.email.size() <= 128;
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['name', 'location', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() <= 128
+        && data.location is string && data.location.size() <= 256
+        && data.updatedAt == request.time;
+    }
+
+    function isValidPlot(data) {
+      return data.keys().hasAll(['projectId', 'plotNumber', 'status'])
+        && data.projectId is string && data.projectId.size() <= 128
+        && data.plotNumber is string && data.plotNumber.size() <= 64
+        && data.status in ['Available', 'Sold', 'Reserved']
+        && (data.status != 'Sold' || (data.keys().hasAll(['customerName', 'customerContact'])));
+    }
+
+    // --- Collections ---
+
+    // Employees
+    match /employees/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && userId == request.auth.uid && isValidEmployee(incoming());
+      allow update: if (isAdmin() || (userId == request.auth.uid)) && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'username', 'employeeId', 'name', 'photoUrl', 'updatedAt']);
+      allow delete: if isAdmin();
+    }
+
+    // Projects
+    match /projects/{projectId} {
+      allow get, list: if isEmployee();
+      allow create: if isAdmin() && isValidId(projectId) && isValidProject(incoming());
+      allow update: if isEmployee() && (
+        isAdmin() || 
+        (incoming().diff(existing()).affectedKeys().hasOnly(['availablePlots', 'updatedAt']))
+      ) && incoming().updatedAt == request.time;
+      allow delete: if isAdmin();
+
+      // Plots subcollection
+      match /plots/{plotId} {
+        allow get, list: if isEmployee();
+        allow create: if isAdmin() && isValidId(plotId) && isValidPlot(incoming());
+        allow update: if isEmployee() && (
+          isAdmin() || 
+          (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'customerName', 'customerContact', 'updatedAt', 'updatedBy']))
+        ) && incoming().updatedAt == request.time;
+        allow delete: if isAdmin();
+      }
+    }
+  }
+}

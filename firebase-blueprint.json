@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "Employee": {
+      "title": "Employee",
+      "description": "Details for Revathi Infra employees and their access roles.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string", "description": "Unique company ID" },
+        "username": { "type": "string", "description": "Display username" },
+        "role": { "type": "string", "enum": ["admin", "staff"], "description": "Access level" },
+        "email": { "type": "string", "format": "email", "description": "Firebase Auth linked email" },
+        "name": { "type": "string" },
+        "photoUrl": { "type": "string", "description": "Profile picture" }
+      },
+      "required": ["employeeId", "username", "role", "email"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Real estate project details including location and layout information.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "location": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "layoutUrl": { "type": "string", "description": "Primary layout map image" },
+        "totalPlots": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "location", "createdAt", "updatedAt"]
+    },
+    "Plot": {
+      "title": "Plot",
+      "description": "Individual plot entry within a specific project layout.",
+      "type": "object",
+      "properties": {
+        "projectId": { "type": "string" },
+        "plotNumber": { "type": "string" },
+        "size": { "type": "string", "description": "Area in Sq. Yards or Sq. Feet" },
+        "status": { "type": "string", "enum": ["Available", "Sold", "Reserved"] },
+        "price": { "type": "number" },
+        "facing": { "type": "string", "enum": ["East", "West", "North", "South", "NE", "NW", "SE", "SW"] },
+        "customerName": { "type": "string" },
+        "customerContact": { "type": "string" },
+        "updatedBy": { "type": "string", "description": "Employee ID who last updated status" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["projectId", "plotNumber", "status"]
+    }
+  },
+  "firestore": {
+    "employees": {
+      "schema": "Employee",
+      "description": "Registry of authorized employees"
+    },
+    "projects": {
+      "schema": "Project",
+      "description": "Main projects collection"
+    },
+    "projects/{projectId}/plots": {
+      "schema": "Plot",
+      "description": "Plots associated with a specific project"
+    }
+  }
+}
